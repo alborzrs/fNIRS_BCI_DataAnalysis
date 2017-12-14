@@ -1,0 +1,152 @@
+function [FeatureMatrix] = f_FilteredDataMatrixtoFeatures_NIRS(DataMatrix3D_Filtered,samplingFreq, isSlope,slopeRanges,isMean,isVariance,isSkewness,isKurtosis,isMaxSlope,maxSlopeWindowSize,maxSlopeOverlapSize,maxSlopeRemoveSize)
+%This function transforms the raw (or filtered) input NIRS data to features
+%
+%   Inputs:
+%
+%       DataMatrix3D_Filtered: filtered data, size: a 3d matrix, length of
+%       trial (number of second times sampling freq) X number of channels
+%       X number of trials
+%
+%       samplingFreq: Sampling frequency of the NIRS signal
+%
+%       isSlope: 0 --> The slope of each channel will not be included in the output features
+%                1 --> The slope of each channel (in the ranges specified by "SlopeRanges") will be included in the output features
+%
+%       slopeRanges: A n_by_2 matrix. In each row, a time range is
+%       specfied in seconds. For example [0 5;0 10;0 15] calculates 3
+%       slopes for each channel in the ranges of 0-5s, 0-10s and 0-15 s
+%
+%       isMean: 0 --> The mean of each channel will not be included in the output features
+%               1 --> The mean of each channel will be included in the output features
+%
+%       isVariance: 0 --> The variance of each channel will not be included in the output features
+%                   1 --> The variance of each channel will be included in the output features
+%
+%       isSkewness: 0 --> The skewness of each channel will not be included in the output features
+%                   1 --> The skewness of each channel will be included in the output features
+%
+%       isKurtosis: 0 --> The kurtosis of each channel will not be included in the output features
+%                   1 --> The kurtosis of each channel will be included in the output features
+%
+%       isMaxSlope: 0 --> The maximum slope of each channel will not be included in the output features
+%                   1 --> The maximul slope of each channel (in the window size specified with the
+%                   paramters "maxSlopeWindowSize" and "maxSlopeOverlapSize") will be included in the output features.
+%                   MaxSlope compares the slopes in  all possible ranges with the length of the maxSlopeWindowSize
+%                   (and minimum overlap size of maxSlopeOverlapSize) and returns the maximum (in terms of
+%                   absolute magnitude) slope for each channel.
+%
+%       maxSlopeWindowSize: The window size (a scalar number) for calculating the maximum
+%       slope (please refer to the explanation for isMaxSlope)
+%
+%       maxSlopeOverlapSize: The minimum overlap size (a scalar number) between different windows when calculating the maximum
+%       slope (please refer to the explanation for isMaxSlope)
+%
+%   Output:
+%
+%       FeatureMatrix: An m_by_n matrix, m is the number of samples
+%       and n is the number of features.
+
+%Defining some parameters for easier referencing
+FeatureMatrix=[];
+sizeOfEachTrial=size(DataMatrix3D_Filtered,1); % length of each trial: number of second times sampling freq
+numOfChannels=size(DataMatrix3D_Filtered,2); %number of channels, oxy + deoxy. For example, if there are 52 channels, numOfChannels would be 104.
+numOfTrials=size(DataMatrix3D_Filtered,3); %number of trials
+%=================Calculating slope features=====================
+if (isSlope==1)
+    numOfSlopes=size(slopeRanges,1);  %number of ranges that the slope should be caluclated for each
+    FeatureMatrix_Slopes = zeros (numOfTrials,numOfSlopes*numOfChannels); %matrix of slope features    
+    for trialCounter=1:numOfTrials
+        currentTrial=zeros(sizeOfEachTrial,numOfChannels);
+        currentTrial(:,:)=DataMatrix3D_Filtered(:,:,trialCounter);
+        currentTrial=currentTrial'; %This matrix contains the information of one trial at a time
+        allSlopesOfOneTrial=[];
+        for slopeRangecounter=1:numOfSlopes           
+            startPoint=samplingFreq*slopeRanges(slopeRangecounter,1)+1; % calculating the start point of the current range. 
+            endPoint=samplingFreq*slopeRanges(slopeRangecounter,2); % calculating the end point of the current range
+            regressionInpMatrix=repmat([(startPoint/samplingFreq):(1/samplingFreq):(endPoint/samplingFreq)],numOfChannels,1); % this matrix is required for calculation of the regression. If the interval is [0 5s] with the samplingFreq=10Hz, this matrix will be [0.1:0.01:5]
+            [~,slopeVector,~] = regression(regressionInpMatrix,currentTrial(:,startPoint:endPoint)); % fitting a linear model to the specified window
+            allSlopesOfOneTrial=[allSlopesOfOneTrial slopeVector']; %adding the slope vector to the total slope vector for the current trial
+        end
+        FeatureMatrix_Slopes(trialCounter,:)=allSlopesOfOneTrial;
+    end
+    FeatureMatrix=[FeatureMatrix,FeatureMatrix_Slopes];
+end
+
+
+%=================Calculating Mean features=====================
+if (isMean==1)
+    FeatureMatrix_Mean = zeros (numOfTrials,numOfChannels); %matrix of Means features    
+    for trialCounter=1:numOfTrials
+        currentTrial=zeros(sizeOfEachTrial,numOfChannels);
+        currentTrial(:,:)=DataMatrix3D_Filtered(:,:,trialCounter); %This matrix contains the information of one trial at a time
+        FeatureMatrix_Mean(trialCounter,:)= mean(currentTrial);
+    end   
+    FeatureMatrix=[FeatureMatrix,FeatureMatrix_Mean];
+end
+
+%=================Calculating variance features=====================
+if (isVariance==1)
+    FeatureMatrix_Variance = zeros (numOfTrials,numOfChannels); %matrix of variance features    
+    for trialCounter=1:numOfTrials
+        currentTrial=zeros(sizeOfEachTrial,numOfChannels);
+        currentTrial(:,:)=DataMatrix3D_Filtered(:,:,trialCounter); %This matrix contains the information of one trial at a time
+        FeatureMatrix_Variance(trialCounter,:)= var(currentTrial);
+    end   
+    FeatureMatrix=[FeatureMatrix,FeatureMatrix_Variance];
+end
+
+%=================Calculating skewness features=====================
+if (isSkewness==1)
+    FeatureMatrix_Skewness = zeros (numOfTrials,numOfChannels); %matrix of skewness features    
+    for trialCounter=1:numOfTrials
+        currentTrial=zeros(sizeOfEachTrial,numOfChannels);
+        currentTrial(:,:)=DataMatrix3D_Filtered(:,:,trialCounter); %This matrix contains the information of one trial at a time
+        FeatureMatrix_Skewness(trialCounter,:)= skewness(currentTrial);
+    end   
+    FeatureMatrix=[FeatureMatrix,FeatureMatrix_Skewness];
+end
+
+%=================Calculating Kurtosis features=====================
+if (isKurtosis==1)
+    FeatureMatrix_Kurtosis = zeros (numOfTrials,numOfChannels); %matrix of Kurtosis features    
+    for trialCounter=1:numOfTrials
+        currentTrial=zeros(sizeOfEachTrial,numOfChannels);
+        currentTrial(:,:)=DataMatrix3D_Filtered(:,:,trialCounter); %This matrix contains the information of one trial at a time
+        FeatureMatrix_Kurtosis(trialCounter,:)= kurtosis(currentTrial);
+    end   
+    FeatureMatrix=[FeatureMatrix,FeatureMatrix_Kurtosis];
+end
+
+%=================Calculating MaxSlope features=====================
+% MaxSlope features: For each channel during each trial, it computes the
+% maximum slope in fixed-size windows (maxSlopeWindowSize). These windows
+% have the minimum distance of maxSlopeOverlapSize from each other.
+% Finally, maxSlopeRemoveSize is the length that is removed from the
+% beginning of the trial before computing the slopes. If you choose zero
+% for the value of maxSlopeRemoveSize, then the first interval is more
+% likely to be chosen and this interval is usually not very useful.
+
+if (isMaxSlope==1)
+    FeatureMatrix_MaxSlopes = zeros (numOfTrials,numOfChannels); %matrix of MaxSlope features    
+    numOfRanges=(((floor(sizeOfEachTrial/samplingFreq))-maxSlopeWindowSize-maxSlopeRemoveSize)/maxSlopeOverlapSize)+1; % calculating the number of windows
+    for trialCounter=1:numOfTrials
+        currentTrial=zeros(sizeOfEachTrial,numOfChannels);
+        currentTrial(:,:)=DataMatrix3D_Filtered(:,:,trialCounter);
+        currentTrial=currentTrial'; %This matrix contains the information of one trial at a time
+        allSlopesOfOneTrial=[];
+        for slopeRangecounter=1:numOfRanges % This loop goes through all possible windows          
+            startPoint=(maxSlopeOverlapSize*samplingFreq*(slopeRangecounter-1))+1+(maxSlopeRemoveSize*samplingFreq); % calculating the start point of the current range. 
+            endPoint=startPoint+(maxSlopeWindowSize*samplingFreq)-1; % calculating the end point of the current range
+            regressionInpMatrix=repmat([(startPoint/samplingFreq):(1/samplingFreq):(endPoint/samplingFreq)],numOfChannels,1); % this matrix is required for calculation of the regression. If the interval is [0 5s] with the samplingFreq=10Hz, this matrix will be [0.1:0.01:5]
+            [~,slopeVector,~] = regression(regressionInpMatrix,currentTrial(:,startPoint:endPoint)); % fitting a linear model to the specified window
+            allSlopesOfOneTrial=[allSlopesOfOneTrial slopeVector]; %adding the slope vector to the total slope vector for the current trial
+        end
+        allSlopesOfOneTrial=allSlopesOfOneTrial';
+        [~,maxIndices]=max(abs(allSlopesOfOneTrial)); %finding the index for the maximum slope (magnitude) for each channel in the current trial
+
+        for maxCounter=1:numOfChannels
+            FeatureMatrix_MaxSlopes(trialCounter, maxCounter)=allSlopesOfOneTrial(maxIndices(maxCounter),maxCounter); % Although we looked for the maximum magnitude, now we need the actual value for the maximum magnitude.
+        end
+    end  
+    FeatureMatrix=[FeatureMatrix,FeatureMatrix_MaxSlopes]; % adding the features generated in this section to the final FeatureMatrix
+end
