@@ -1,0 +1,78 @@
+function [DataMatrix3D_Filtered] = f_DataMatrixtoFilteredDataMatrix_NIRS(DataMatrix3D_Raw,FilterName, FilterType, SamplingFreq,Fpass,Fstop,Rp,Rs)
+%This function filters the NIRS raw data
+%
+%   Inputs:
+%
+%       DataMatrix3D_Filtered: raw NIRS data, size: 3d matrix,
+%       length of trial (number of second times sampling freq) X
+%       number of channels X number of trials
+%
+%       FilterName: 1 --> Butterworth
+%                   2 --> Chebyshev Type II
+%
+%       FilterType: 1 --> Low pass
+%                   2 --> Band pass
+%                   3 --> High pass
+%
+%       SamplingFreq: Sampling frequency of the input signal
+%
+%       Fpass: Passband corner frequency. It is a 1X2 vector for bandpass filters. 
+%
+%       Fstop: Stopband corner frequency. It is a 1X2 vector for bandpass filters.
+%
+%       Rp: Passband ripple in db
+%
+%       Rs: Stopband ripple in db
+%
+%   Output:
+%
+%       DataMatrix3D_Filtered: Filtered data, Same size as the input matrix 
+
+switch FilterName
+    case 1 %Butterworth filter
+        if (FilterType==1) % It means the filter is a lowpass filter. It means Wp<Ws
+            Wp = Fpass/(SamplingFreq/2); %Normalized passband corner frequency
+            Ws = Fstop/(SamplingFreq/2); %Normalized stopband corner frequency
+            [filterOrder,Wn] = buttord(Wp,Ws,Rp,Rs); % Calculating the minimum order of the filter and cutoff frequency
+            [b,a] = butter(filterOrder,Wn); % Creating the filter transfer functions
+            DataMatrix3D_Filtered = filtfilt(b,a,DataMatrix3D_Raw); % filtering step
+        end
+        if (FilterType==2) % It means the filter is a bandpass filter. It means Ws(1) < Wp(1) < Wp(2) < Ws(2)
+            Wp = Fpass/(SamplingFreq/2); %Normalized passband corner frequency
+            Ws = Fstop/(SamplingFreq/2); %Normalized stopband corner frequency
+            [filterOrder,Wn] = buttord(Wp,Ws,Rp,Rs); % Calculating the minimum order of the filter and cutoff frequency
+            [b,a] = butter(filterOrder,Wn); % Creating the filter transfer functions
+            DataMatrix3D_Filtered = filtfilt(b,a,DataMatrix3D_Raw); % filtering step
+        end
+        if (FilterType==3) % It means the filter is a highpass filter. It means Wp>Ws
+            Wp = Fpass/(SamplingFreq/2); %Normalized passband corner frequency
+            Ws = Fstop/(SamplingFreq/2); %Normalized stopband corner frequency
+            [filterOrder,Wn] = buttord(Wp,Ws,Rp,Rs); % Calculating the minimum order of the filter and cutoff frequency
+            [b,a] = butter(filterOrder,Wn,'high'); % Creating the filter transfer functions
+            DataMatrix3D_Filtered = filtfilt(b,a,DataMatrix3D_Raw,'high'); % filtering step
+        end
+    case 2 %Chebyshev Type II
+        if (FilterType==1) % It means the filter is a lowpass filter. It means Wp<Ws
+            Wp = Fpass/(SamplingFreq/2); %Normalized passband corner frequency
+            Ws = Fstop/(SamplingFreq/2); %Normalized stopband corner frequency
+            [filterOrder,Ws] = cheb2ord(Wp,Ws,Rp,Rs); % Calculating the minimum order of the filter and cutoff frequency
+            
+            [b,a] = cheby2(filterOrder,Rs,Ws); % Creating the filter transfer functions
+            DataMatrix3D_Filtered = filtfilt(b,a,DataMatrix3D_Raw); % filtering step
+        end
+        if (FilterType==2) % It means the filter is a bandpass filter. It means Ws(1) < Wp(1) < Wp(2) < Ws(2)
+            Wp = Fpass/(SamplingFreq/2); %Normalized passband corner frequency
+            Ws = Fstop/(SamplingFreq/2); %Normalized stopband corner frequency
+            [filterOrder,Ws] = cheb2ord(Wp,Ws,Rp,Rs); % Calculating the minimum order of the filter and cutoff frequency
+            [b,a] = cheby2(filterOrder,Rs,Ws); % Creating the filter transfer functions
+            DataMatrix3D_Filtered = filtfilt(b,a,DataMatrix3D_Raw); % filtering step
+        end
+        if (FilterType==3) % It means the filter is a highpass filter. It means Wp>Ws
+            Wp = Fpass/(SamplingFreq/2); %Normalized passband corner frequency
+            Ws = Fstop/(SamplingFreq/2); %Normalized stopband corner frequency
+            [filterOrder,Ws] = cheb2ord(Wp,Ws,Rp,Rs); % Calculating the minimum order of the filter and cutoff frequency
+            [b,a] = cheby2(filterOrder,Rs,Ws,'high'); % Creating the filter transfer functions
+            DataMatrix3D_Filtered = filtfilt(b,a,DataMatrix3D_Raw,'high'); % filtering step
+        end
+end
+
